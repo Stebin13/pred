@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Shipping Predictions WDC</title>
+    <script src="https://connectors.tableau.com/libs/tableauwdc-2.3.latest.js"></script>
+    <script>
+        var myConnector = tableau.makeConnector();
+
+        myConnector.getSchema = function (schemaCallback) {
+            var cols = [{
+                id: "CO2_Emissions",
+                alias: "CO2 Emissions",
+                dataType: tableau.dataTypeEnum.float
+            }, {
+                id: "Freight_Cost",
+                alias: "Freight Cost",
+                dataType: tableau.dataTypeEnum.float
+            }];
+
+            var tableSchema = {
+                id: "shippingPredictions",
+                alias: "Shipping Predictions",
+                columns: cols
+            };
+
+            schemaCallback([tableSchema]);
+        };
+
+        myConnector.getData = function (table, doneCallback) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("POST", "http://127.0.0.1:5000/predict", true);
+            xhr.setRequestHeader("Content-Type", "application/json");
+
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    var data = JSON.parse(xhr.responseText);
+                    table.appendRows([{
+                        "CO2_Emissions": data["CO2 Emissions"],
+                        "Freight_Cost": data["Freight Cost"]
+                    }]);
+                    doneCallback();
+                }
+            };
+
+            var payload = JSON.stringify({
+                "origin_country": tableau.connectionData.origin_country,
+                "arrival_country": tableau.connectionData.arrival_country,
+                "shipping_conditions": tableau.connectionData.shipping_conditions,
+                "transport_mode": tableau.connectionData.transport_mode,
+                "weight": tableau.connectionData.weight
+            });
+
+            xhr.send(payload);
+        };
+
+        tableau.registerConnector(myConnector);
+
+        function submitData() {
+            var originCountry = document.getElementById("origin_country").value.trim();
+            var arrivalCountry = document.getElementById("arrival_country").value.trim();
+            var shippingConditions = document.getElementById("shipping_conditions").value.trim();
+            var transportMode = document.getElementById("transport_mode").value.trim();
+            var weight = parseFloat(document.getElementById("weight").value.trim());
+
+            tableau.connectionData = {
+                "origin_country": originCountry,
+                "arrival_country": arrivalCountry,
+                "shipping_conditions": shippingConditions,
+                "transport_mode": transportMode,
+                "weight": weight
+            };
+
+            tableau.connectionName = "Shipping Predictions";
+            tableau.submit();
+        }
+    </script>
+</head>
+<body>
+    <h1>Shipping Predictions Web Data Connector</h1>
+    <form onsubmit="submitData(); return false;">
+        <p>Origin Country: <input type="text" id="origin_country"></p>
+        <p>Arrival Country: <input type="text" id="arrival_country"></p>
+        <p>Shipping Conditions: <input type="text" id="shipping_conditions"></p>
+        <p>Mode of Transport: <input type="text" id="transport_mode"></p>
+        <p>Weight: <input type="text" id="weight"></p>
+        <input type="submit" value="Get Predictions">
+    </form>
+</body>
+</html>
